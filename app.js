@@ -39,34 +39,46 @@ const DRIVER_MAP = {};
 DRIVERS.forEach(d => DRIVER_MAP[d.name] = d);
 
 const RACES = [
-  { id:1,  name:'Australia',      flag:'🇦🇺', date:'2026-03-08' },
-  { id:2,  name:'China',          flag:'🇨🇳', date:'2026-03-22' },
-  { id:3,  name:'Japón',          flag:'🇯🇵', date:'2026-04-06' },
-  { id:4,  name:'Bahréin',        flag:'🇧🇭', date:'2026-04-13' },
-  { id:5,  name:'Arabia Saudita', flag:'🇸🇦', date:'2026-04-20' },
-  { id:6,  name:'Miami',          flag:'🇺🇸', date:'2026-05-03' },
-  { id:7,  name:'Emilia-Romaña',  flag:'🇮🇹', date:'2026-05-17' },
-  { id:8,  name:'Mónaco',         flag:'🇲🇨', date:'2026-05-24' },
-  { id:9,  name:'España',         flag:'🇪🇸', date:'2026-05-31' },
-  { id:10, name:'Canadá',         flag:'🇨🇦', date:'2026-06-14' },
-  { id:11, name:'Austria',        flag:'🇦🇹', date:'2026-06-28' },
-  { id:12, name:'Gran Bretaña',   flag:'🇬🇧', date:'2026-07-05' },
-  { id:13, name:'Bélgica',        flag:'🇧🇪', date:'2026-07-26' },
-  { id:14, name:'Hungría',        flag:'🇭🇺', date:'2026-08-02' },
-  { id:15, name:'Países Bajos',   flag:'🇳🇱', date:'2026-08-30' },
-  { id:16, name:'Italia',         flag:'🇮🇹', date:'2026-09-06' },
-  { id:17, name:'Azerbaiyán',     flag:'🇦🇿', date:'2026-09-20' },
-  { id:18, name:'Singapur',       flag:'🇸🇬', date:'2026-10-04' },
-  { id:19, name:'Austin',         flag:'🇺🇸', date:'2026-10-18' },
-  { id:20, name:'México',         flag:'🇲🇽', date:'2026-10-25' },
-  { id:21, name:'Brasil',         flag:'🇧🇷', date:'2026-11-08' },
-  { id:22, name:'Las Vegas',      flag:'🇺🇸', date:'2026-11-21' },
-  { id:23, name:'Qatar',          flag:'🇶🇦', date:'2026-11-29' },
-  { id:24, name:'Abu Dhabi',      flag:'🇦🇪', date:'2026-12-06' },
+  { id:1,  name:'Australia',      flag:'🇦🇺', start:'2026-03-08T05:00:00Z' }, // 3pm AEDT
+  { id:2,  name:'China',          flag:'🇨🇳', start:'2026-03-22T07:00:00Z' }, // 3pm CST
+  { id:3,  name:'Japón',          flag:'🇯🇵', start:null }, // 2pm JST
+  { id:6,  name:'Miami',          flag:'🇺🇸', start:'2026-05-03T20:00:00Z' }, // 4pm EDT
+  { id:7,  name:'Canadá',         flag:'🇨🇦', start:'2026-05-24T20:00:00Z' }, // 4pm EDT
+  { id:8,  name:'Mónaco',         flag:'🇲🇨', start:'2026-06-07T13:00:00Z' }, // 3pm CEST
+  { id:9,  name:'España (Madrid)',flag:'🇪🇸', start:'2026-06-14T13:00:00Z' }, // 3pm CEST
+  { id:10, name:'Austria',        flag:'🇦🇹', start:'2026-06-28T13:00:00Z' }, // 3pm CEST
+  { id:11, name:'Gran Bretaña',   flag:'🇬🇧', start:'2026-07-05T14:00:00Z' }, // 3pm BST
+  { id:12, name:'Bélgica',        flag:'🇧🇪', start:'2026-07-26T13:00:00Z' }, // 3pm CEST
+  { id:13, name:'Hungría',        flag:'🇭🇺', start:'2026-08-02T13:00:00Z' }, // 3pm CEST
+  { id:14, name:'Países Bajos',   flag:'🇳🇱', start:'2026-08-30T13:00:00Z' }, // 3pm CEST
+  { id:15, name:'Italia',         flag:'🇮🇹', start:'2026-09-06T13:00:00Z' }, // 3pm CEST
+  { id:16, name:'España (Barna)', flag:'🇪🇸', start:'2026-09-13T13:00:00Z' }, // 3pm CEST
+  { id:17, name:'Azerbaiyán',     flag:'🇦🇿', start:'2026-09-26T11:00:00Z' }, // 3pm AZT (sábado)
+  { id:18, name:'Singapur',       flag:'🇸🇬', start:'2026-10-04T12:00:00Z' }, // 8pm SGT
+  { id:19, name:'Austin',         flag:'🇺🇸', start:'2026-10-18T19:00:00Z' }, // 3pm CDT
+  { id:20, name:'México',         flag:'🇲🇽', start:'2026-10-25T20:00:00Z' }, // 2pm CDT
+  { id:21, name:'Brasil',         flag:'🇧🇷', start:'2026-11-08T17:00:00Z' }, // 2pm BRT
+  { id:22, name:'Las Vegas',      flag:'🇺🇸', start:'2026-11-22T06:00:00Z' }, // 10pm PST sábado
+  { id:23, name:'Qatar',          flag:'🇶🇦', start:'2026-11-29T16:00:00Z' }, // 7pm AST
+  { id:24, name:'Abu Dhabi',      flag:'🇦🇪', start:'2026-12-06T13:00:00Z' }, // 5pm GST
 ];
 
 const RACE_MAP = {};
 RACES.forEach(r => RACE_MAP[r.id] = r);
+
+function isDeadlinePassed(raceId) {
+  const race = RACE_MAP[raceId];
+  if (!race || !race.start) return false;
+  const deadline = new Date(new Date(race.start).getTime() - 60 * 60 * 1000); // 1hr before
+  return new Date() > deadline;
+}
+
+function getDeadlineText(raceId) {
+  const race = RACE_MAP[raceId];
+  if (!race || !race.start) return '';
+  const deadline = new Date(new Date(race.start).getTime() - 60 * 60 * 1000);
+  return deadline.toLocaleString('es-AR', { dateStyle:'short', timeStyle:'short' });
+}
 
 const PTS_SCALE = [25,18,15,12,10,8,6,4,2,1];
 
@@ -287,13 +299,25 @@ async function loadPronostico() {
   const raceId = parseInt(document.getElementById('race-select').value);
   const race   = getRaceInfo(raceId);
 
+  const deadline = isDeadlinePassed(raceId);
+  const deadlineText = getDeadlineText(raceId);
+  const saveBtn = document.getElementById('btn-save');
+  if (saveBtn) {
+    saveBtn.disabled = deadline;
+    saveBtn.querySelector('.btn-text').textContent = deadline ? 'PRONÓSTICO CERRADO' : 'GUARDAR PRONÓSTICO';
+  }
+
   document.getElementById('pron-race-info').innerHTML = `
     <div class="race-info-bar">
       <div class="race-flag">${race.flag}</div>
       <div>
         <div class="race-info-name">${race.name.toUpperCase()}</div>
-        <div class="race-info-date">${formatDate(race.date)}</div>
+        <div class="race-info-date">${race.start ? formatDate(race.start) : ''}</div>
       </div>
+      <div class="race-deadline">${deadline
+        ? '⛔ CERRADO'
+        : deadlineText ? `Cierra: ${deadlineText}` : ''
+      }</div>
     </div>`;
 
   const myProns = allProns.filter(p => p.participante_id === currentUser.id && p.carrera_id === raceId)
@@ -350,6 +374,11 @@ async function savePronostico() {
   const raceId = parseInt(document.getElementById('race-select').value);
   const btn    = document.getElementById('btn-save');
   const picks  = [];
+
+  if (isDeadlinePassed(raceId)) {
+    toast('⛔ Pronóstico cerrado — la carrera está por empezar','err');
+    return;
+  }
 
   for (let i=1;i<=10;i++) {
     const v = document.getElementById(`pron-${i}`).value;
@@ -875,6 +904,11 @@ function avatarColor(nombre) {
 function formatDate(dateStr) {
   const d = new Date(dateStr);
   return d.toLocaleDateString('es-AR', { day:'numeric', month:'long', year:'numeric' });
+}
+
+function formatDateTime(dateStr) {
+  const d = new Date(dateStr);
+  return d.toLocaleString('es-AR', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit', timeZoneName:'short' });
 }
 
 let toastTimer;
