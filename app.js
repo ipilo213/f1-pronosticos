@@ -441,7 +441,7 @@ function showShareButton(raceId, picks) {
   const el = document.createElement('div');
   el.id = 'share-section';
   el.style.cssText = 'margin-bottom:1rem;';
-  el.innerHTML = `<button class="btn-f1" style="background:#1a1a1a;border:1px solid rgba(255,255,255,0.15);" onclick="generateShareImage(${raceId}, ${JSON.stringify(picks)})">
+  el.innerHTML = `<button class="btn-f1" style="background:#1a1a1a;border:1px solid rgba(255,255,255,0.15);" onclick="generateShareImage(${raceId}, ${JSON.stringify(picks)}, this)">
     <span class="btn-text">COMPARTIR PRONÓSTICO</span>
     <span class="btn-flag" style="font-size:1rem">↗</span>
   </button>`;
@@ -449,8 +449,7 @@ function showShareButton(raceId, picks) {
   saveBar.parentNode.insertBefore(el, saveBar);
 }
 
-async function generateShareImage(raceId, picks) {
-  const btn = event.currentTarget;
+async function generateShareImage(raceId, picks, btn) {
   btn.disabled = true;
   btn.querySelector('.btn-text').textContent = 'GENERANDO...';
 
