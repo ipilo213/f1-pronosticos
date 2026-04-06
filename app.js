@@ -214,7 +214,7 @@ function renderNextRace() {
       <div class="nrc-inner">
         <div class="nrc-label">PRÓXIMA CARRERA</div>
         <div class="nrc-name">${next.name.toUpperCase()}</div>
-        <div class="nrc-date">${formatDate(next.date)}</div>
+        <div class="nrc-date">${formatDate(next.start || next.date)}</div>
         <div class="nrc-countdown">
           <div class="countdown-unit"><div class="countdown-num">${days}</div><div class="countdown-lbl">días</div></div>
           <div class="countdown-unit"><div class="countdown-num">${hrs}</div><div class="countdown-lbl">hrs</div></div>
@@ -652,7 +652,7 @@ function loadRankCarrera() {
     <div class="race-info-bar" style="margin-bottom:1rem">
       <div class="race-flag">${race?.flag||'🏁'}</div>
       <div><div class="race-info-name">${race?.name?.toUpperCase()||''}</div>
-      <div class="race-info-date">${race?.date?formatDate(race.date):''}</div></div>
+      <div class="race-info-date">${race?.date?formatDate(race.start || race.date):''}</div></div>
     </div>
     <div class="rank-list">
       ${data.map((p,i)=>{
