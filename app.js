@@ -454,63 +454,130 @@ async function generateShareImage(raceId, picks) {
   btn.disabled = true;
   btn.querySelector('.btn-text').textContent = 'GENERANDO...';
 
-  const race = RACE_MAP[raceId];
-  const dateStr = new Date().toLocaleDateString('es-AR', {day:'numeric',month:'long',year:'numeric'});
-
   try {
-    if (typeof html2canvas === 'undefined') throw new Error('html2canvas no cargó');
+    const race    = RACE_MAP[raceId];
+    const dateStr = new Date().toLocaleDateString('es-AR', {day:'numeric',month:'long',year:'numeric'});
+    const scale   = 2;
+    const W       = 480;
+    const rowH    = 48;
+    const headerH = 110;
+    const footerH = 36;
+    const H       = headerH + picks.length * rowH + footerH;
 
-    const wrap = document.createElement('div');
-    wrap.style.cssText = 'position:fixed;left:-9999px;top:0;width:480px;background:#080808;font-family:Arial,sans-serif;padding:0;overflow:hidden;';
+    const canvas  = document.createElement('canvas');
+    canvas.width  = W * scale;
+    canvas.height = H * scale;
+    const ctx     = canvas.getContext('2d');
+    ctx.scale(scale, scale);
 
-    wrap.innerHTML = `
-      <div style="background:#E10600;height:4px;width:100%"></div>
-      <div style="padding:24px 28px 20px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
-          <div>
-            <div style="font-size:10px;font-weight:700;letter-spacing:4px;color:#E10600;margin-bottom:4px;">PRONÓSTICO F1 · 2026</div>
-            <div style="font-size:28px;font-weight:900;color:white;line-height:1;">${race?.name?.toUpperCase()||''}</div>
-            <div style="font-size:13px;color:#666;margin-top:4px;">${dateStr}</div>
-          </div>
-          <div style="text-align:right;">
-            <div style="font-size:10px;color:#444;margin-bottom:2px;">PRONOSTICADO POR</div>
-            <div style="font-size:20px;font-weight:800;color:white;">${currentUser.nombre.toUpperCase()}</div>
-          </div>
-        </div>
-        <div style="border-top:1px solid #1a1a1a;padding-top:16px;">
-          ${picks.map((piloto,i) => {
-            const pos = i+1;
-            const d = DRIVER_MAP[piloto] || {};
-            const color = d.color || '#444';
-            return `<div style="display:flex;align-items:center;gap:12px;padding:7px 10px;margin-bottom:4px;background:${pos<=3?'#161616':'transparent'};border-radius:4px;border-left:3px solid ${color};">
-              <div style="font-size:16px;font-weight:900;color:#444;width:22px;text-align:center;">${pos}</div>
-              <div style="flex:1;">
-                <div style="font-size:15px;font-weight:700;color:white;">${piloto}</div>
-                <div style="font-size:11px;color:#555;">${d.team||''}</div>
-              </div>
-              <div style="width:8px;height:8px;border-radius:50%;background:${color};"></div>
-            </div>`;
-          }).join('')}
-        </div>
-        <div style="margin-top:16px;border-top:1px solid #1a1a1a;padding-top:12px;display:flex;justify-content:space-between;">
-          <div style="font-size:10px;color:#333;letter-spacing:2px;">F1 PRONOSTICOS 2026</div>
-          <div style="font-size:10px;color:#333;">QUIEN GANA?</div>
-        </div>
-      </div>`;
+    // background
+    ctx.fillStyle = '#080808';
+    ctx.fillRect(0, 0, W, H);
 
-    document.body.appendChild(wrap);
+    // top red bar
+    ctx.fillStyle = '#E10600';
+    ctx.fillRect(0, 0, W, 4);
 
-    const canvas = await html2canvas(wrap, {
-      backgroundColor:'#080808', scale:2,
-      useCORS:false, allowTaint:true, logging:false, imageTimeout:0,
+    // header
+    ctx.fillStyle = '#E10600';
+    ctx.font = 'bold 9px Arial';
+    ctx.letterSpacing = '3px';
+    ctx.fillText('PRONOSTICO F1 · 2026', 24, 26);
+    ctx.letterSpacing = '0px';
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 26px Arial';
+    ctx.fillText((race?.name || '').toUpperCase(), 24, 58);
+
+    ctx.fillStyle = '#555';
+    ctx.font = '11px Arial';
+    ctx.fillText(dateStr, 24, 76);
+
+    // user name right
+    ctx.fillStyle = '#555';
+    ctx.font = '9px Arial';
+    ctx.textAlign = 'right';
+    ctx.fillText('PRONOSTICADO POR', W - 24, 44);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 16px Arial';
+    ctx.fillText(currentUser.nombre.toUpperCase(), W - 24, 64);
+    ctx.textAlign = 'left';
+
+    // divider
+    ctx.strokeStyle = '#1a1a1a';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(24, headerH - 10);
+    ctx.lineTo(W - 24, headerH - 10);
+    ctx.stroke();
+
+    // rows
+    picks.forEach((piloto, i) => {
+      const pos   = i + 1;
+      const d     = DRIVER_MAP[piloto] || {};
+      const color = d.color || '#444';
+      const y     = headerH + i * rowH;
+
+      // row bg for top 3
+      if (pos <= 3) {
+        ctx.fillStyle = '#161616';
+        ctx.beginPath();
+        ctx.roundRect(16, y + 4, W - 32, rowH - 6, 4);
+        ctx.fill();
+      }
+
+      // team color bar
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.roundRect(16, y + 4, 3, rowH - 6, 2);
+      ctx.fill();
+
+      // position number
+      ctx.fillStyle = '#444';
+      ctx.font = 'bold 14px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(String(pos), 38, y + rowH/2 + 5);
+      ctx.textAlign = 'left';
+
+      // driver name
+      ctx.fillStyle = '#f2f2f2';
+      ctx.font = 'bold 14px Arial';
+      ctx.fillText(piloto, 52, y + rowH/2 + 2);
+
+      // team
+      ctx.fillStyle = '#555';
+      ctx.font = '10px Arial';
+      ctx.fillText(d.team || '', 52, y + rowH/2 + 15);
+
+      // color dot
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(W - 28, y + rowH/2, 4, 0, Math.PI * 2);
+      ctx.fill();
     });
-    document.body.removeChild(wrap);
 
+    // footer
+    const fy = headerH + picks.length * rowH + 8;
+    ctx.strokeStyle = '#1a1a1a';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(24, fy);
+    ctx.lineTo(W - 24, fy);
+    ctx.stroke();
+
+    ctx.fillStyle = '#333';
+    ctx.font = '9px Arial';
+    ctx.fillText('F1 BCU · f1bcu.com', 24, fy + 18);
+    ctx.textAlign = 'right';
+    ctx.fillText('QUIEN GANA?', W - 24, fy + 18);
+    ctx.textAlign = 'left';
+
+    // share
     canvas.toBlob(async blob => {
       btn.disabled = false;
-      btn.querySelector('.btn-text').textContent = 'COMPARTIR PRONÓSTICO';
+      btn.querySelector('.btn-text').textContent = 'COMPARTIR PRONOSTICO';
       const file = new File([blob], `pronostico-${race?.name||'f1'}.png`, {type:'image/png'});
-      if (navigator.share && navigator.canShare({files:[file]})) {
+      if (navigator.share && navigator.canShare && navigator.canShare({files:[file]})) {
         await navigator.share({files:[file], title:`Mi pronostico - ${race?.name}`, text:`Mi pronostico para el GP de ${race?.name}`});
       } else {
         const url = URL.createObjectURL(blob);
@@ -522,9 +589,8 @@ async function generateShareImage(raceId, picks) {
     }, 'image/png');
 
   } catch(e) {
-    if (document.body.contains(wrap)) document.body.removeChild(wrap);
     btn.disabled = false;
-    btn.querySelector('.btn-text').textContent = 'COMPARTIR PRONÓSTICO';
+    btn.querySelector('.btn-text').textContent = 'COMPARTIR PRONOSTICO';
     toast('Error: ' + e.message, 'err');
   }
 }
