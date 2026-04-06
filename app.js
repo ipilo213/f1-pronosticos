@@ -31,6 +31,8 @@ const DRIVERS = [
   { name:'Bortoleto',  team:'Audi',        num:5,  color:'#52C7B8' },
   { name:'Bottas',     team:'Cadillac',    num:77, color:'#900000' },
   { name:'Perez',      team:'Cadillac',    num:11, color:'#900000' },
+  { name:'Tsunoda',    team:'Sauber',      num:22, color:'#52C7B8' },
+  { name:'Doohan',     team:'Sauber',      num:61, color:'#52C7B8' },
 ];
 
 const DRIVER_MAP = {};
@@ -412,6 +414,104 @@ async function savePronostico() {
 
   toast('Pronóstico guardado 🏁','ok');
   document.getElementById('pron-status').innerHTML = `<div class="status-chip chip-ok">✓ Pronóstico guardado</div>`;
+  showShareButton(raceId, picks);
+}
+
+function showShareButton(raceId, picks) {
+  const existing = document.getElementById('share-section');
+  if (existing) existing.remove();
+  const race = RACE_MAP[raceId];
+  const el = document.createElement('div');
+  el.id = 'share-section';
+  el.style.cssText = 'margin-bottom:1rem;';
+  el.innerHTML = `<button class="btn-f1" style="background:#1a1a1a;border:1px solid rgba(255,255,255,0.15);" onclick="generateShareImage(${raceId}, ${JSON.stringify(picks)})">
+    <span class="btn-text">COMPARTIR PRONÓSTICO</span>
+    <span class="btn-flag" style="font-size:1rem">↗</span>
+  </button>`;
+  const saveBar = document.querySelector('.sticky-save');
+  saveBar.parentNode.insertBefore(el, saveBar);
+}
+
+async function generateShareImage(raceId, picks) {
+  const race = RACE_MAP[raceId];
+  const now  = new Date();
+  const dateStr = now.toLocaleDateString('es-AR', {day:'numeric',month:'long',year:'numeric'});
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = `
+    position:fixed; left:-9999px; top:0;
+    width:480px; background:#080808;
+    font-family:'Barlow Condensed',sans-serif;
+    padding:0; overflow:hidden;
+  `;
+
+  wrap.innerHTML = `
+    <div style="background:#E10600;height:4px;width:100%"></div>
+    <div style="padding:24px 28px 20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <div>
+          <div style="font-size:10px;font-weight:700;letter-spacing:4px;color:#E10600;margin-bottom:4px;">PRONÓSTICO F1 · 2026</div>
+          <div style="font-size:28px;font-weight:900;letter-spacing:-1px;color:white;line-height:1;">${race?.flag || '🏁'} ${(race?.name || '').toUpperCase()}</div>
+          <div style="font-size:13px;color:#666;margin-top:4px;">${dateStr}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:10px;letter-spacing:3px;color:#444;margin-bottom:2px;">PRONOSTICADO POR</div>
+          <div style="font-size:20px;font-weight:800;letter-spacing:1px;color:white;">${currentUser.nombre.toUpperCase()}</div>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid #1a1a1a;padding-top:16px;">
+        ${picks.map((piloto, i) => {
+          const pos = i+1;
+          const d = DRIVER_MAP[piloto] || {};
+          const color = d.color || '#444';
+          const medal = pos===1?'🥇':pos===2?'🥈':pos===3?'🥉':'';
+          const bgTop = pos <= 3 ? '#161616' : 'transparent';
+          return `<div style="display:flex;align-items:center;gap:12px;padding:7px 10px;margin-bottom:4px;background:${bgTop};border-radius:4px;border-left:3px solid ${color};">
+            <div style="font-size:16px;font-weight:900;color:#444;width:22px;text-align:center;flex-shrink:0;">${pos}</div>
+            <div style="flex:1;">
+              <div style="font-size:15px;font-weight:700;color:white;letter-spacing:.5px;">${medal} ${piloto}</div>
+              <div style="font-size:11px;color:#555;letter-spacing:1px;">${d.team || ''}</div>
+            </div>
+            <div style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0;"></div>
+          </div>`;
+        }).join('')}
+      </div>
+
+      <div style="margin-top:16px;border-top:1px solid #1a1a1a;padding-top:12px;display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-size:10px;color:#333;letter-spacing:2px;">F1 PRONÓSTICOS 2026</div>
+        <div style="font-size:10px;color:#333;letter-spacing:1px;">🏁 ¿QUIÉN GANA?</div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(wrap);
+
+  try {
+    const canvas = await html2canvas(wrap, {
+      backgroundColor: '#080808',
+      scale: 2,
+      useCORS: true,
+      logging: false,
+    });
+    document.body.removeChild(wrap);
+
+    canvas.toBlob(async blob => {
+      const file = new File([blob], `pronostico-${race?.name||'f1'}.png`, { type:'image/png' });
+      if (navigator.share && navigator.canShare({ files:[file] })) {
+        await navigator.share({ files:[file], title:`Mi pronóstico — ${race?.name}`, text:`Mi pronóstico para el GP de ${race?.name} 🏁` });
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `pronostico-${race?.name||'f1'}.png`;
+        a.click(); URL.revokeObjectURL(url);
+        toast('Imagen descargada ✓','ok');
+      }
+    }, 'image/png');
+  } catch(e) {
+    document.body.removeChild(wrap);
+    toast('Error al generar imagen','err');
+  }
 }
 
 // ═══════════════════════════════════════════════════
