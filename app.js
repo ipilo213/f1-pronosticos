@@ -401,29 +401,75 @@ function loadRanking() {
   else loadRankCarrera();
 }
 
+// Calcula los puntos de pronóstico de un participante en una carrera
+function calcRaceScore(participanteId, raceId, resArr) {
+  const myP = allProns.filter(p => p.participante_id === participanteId && p.carrera_id === raceId);
+  if (!myP.length) return null;
+  return myP.reduce((sum, pr) => {
+    const ri = resArr.indexOf(pr.piloto);
+    if (ri === -1) return sum;
+    const diff = Math.abs((pr.posicion - 1) - ri);
+    return sum + (diff < PTS_SCALE.length ? PTS_SCALE[diff] : 0);
+  }, 0);
+}
+
+// Asigna puntos de campeonato según posición en el ranking de cada carrera
+// Con empate: promedio de los puntos de las posiciones que comparten
+function assignChampionshipPts(scores) {
+  // scores = [{ id, nombre, raceScore }, ...] ordenado desc por raceScore
+  // Agrupar empates
+  const result = [];
+  let i = 0;
+  while (i < scores.length) {
+    const val = scores[i].raceScore;
+    if (val === null) { result.push({ ...scores[i], champPts: 0 }); i++; continue; }
+    // encontrar todos los que empatan
+    let j = i;
+    while (j < scores.length && scores[j].raceScore === val) j++;
+    // posiciones i..j-1 (1-indexed: i+1..j)
+    const posiciones = Array.from({length: j-i}, (_, k) => i+k); // 0-indexed → PTS_SCALE[pos]
+    const ptsValidos = posiciones.map(p => p < PTS_SCALE.length ? PTS_SCALE[p] : 0);
+    const avg = ptsValidos.reduce((s,p)=>s+p,0) / ptsValidos.length;
+    for (let k = i; k < j; k++) {
+      result.push({ ...scores[k], champPts: avg });
+    }
+    i = j;
+  }
+  return result;
+}
+
 function calcGeneralRanking() {
-  const resMap = {};
+  const raceIds = [...new Set(allResults.map(r => r.carrera_id))];
+  const resMap  = {};
   allResults.forEach(r => {
     if (!resMap[r.carrera_id]) resMap[r.carrera_id] = [];
     resMap[r.carrera_id].push(r);
   });
 
+  // Puntos de campeonato acumulados por participante
   const totals = {};
-  participantes.forEach(p => totals[p.id] = { id:p.id, nombre:p.nombre, pts:0, races:0 });
+  participantes.forEach(p => totals[p.id] = { id:p.id, nombre:p.nombre, pts:0, breakdown:[] });
 
-  allProns.forEach(pr => {
-    const res = resMap[pr.carrera_id];
+  raceIds.forEach(rid => {
+    const res = resMap[rid];
     if (!res) return;
     const arr = res.sort((a,b)=>a.posicion-b.posicion).map(r=>r.piloto);
-    const ri  = arr.indexOf(pr.piloto);
-    if (ri === -1) return;
-    const diff = Math.abs((pr.posicion-1)-ri);
-    const pts  = diff < PTS_SCALE.length ? PTS_SCALE[diff] : 0;
-    totals[pr.participante_id].pts  += pts;
-    if (pr.posicion === 1) totals[pr.participante_id].races++;
+
+    // Calcular score de pronóstico de cada participante en esta carrera
+    const scores = participantes.map(p => ({
+      id: p.id, nombre: p.nombre,
+      raceScore: calcRaceScore(p.id, rid, arr)
+    })).filter(p => p.raceScore !== null)
+      .sort((a,b) => b.raceScore - a.raceScore);
+
+    const withChamp = assignChampionshipPts(scores);
+    withChamp.forEach(p => {
+      totals[p.id].pts += p.champPts;
+      totals[p.id].breakdown.push({ raceId: rid, raceScore: p.raceScore, champPts: p.champPts });
+    });
   });
 
-  return Object.values(totals).sort((a,b)=>b.pts-a.pts);
+  return Object.values(totals).sort((a,b) => b.pts - a.pts);
 }
 
 function loadRankGeneral() {
@@ -495,42 +541,30 @@ function toggleRankDetail(id) {
 }
 
 function loadParticipantDetail(pid, el) {
-  const resMap = {};
-  allResults.forEach(r => {
-    if (!resMap[r.carrera_id]) resMap[r.carrera_id] = [];
-    resMap[r.carrera_id].push(r);
-  });
-
-  const myProns = allProns.filter(p => p.participante_id == pid);
-  const raceIds = [...new Set(myProns.map(p=>p.carrera_id))];
-
-  if (!raceIds.length) {
+  // Use the breakdown from calcGeneralRanking
+  const allRankings = calcGeneralRanking();
+  const mine = allRankings.find(p => p.id == pid);
+  if (!mine || !mine.breakdown.length) {
     el.innerHTML = '<p style="padding:1rem;font-size:.8rem;color:var(--text3)">Sin pronósticos</p>';
     return;
   }
-
-  const rows = raceIds.map(rid => {
-    const race = RACE_MAP[rid];
-    const res  = resMap[rid];
-    if (!res) return null;
-    const arr = res.sort((a,b)=>a.posicion-b.posicion).map(r=>r.piloto);
-    const pronsRace = myProns.filter(p=>p.carrera_id===rid).sort((a,b)=>a.posicion-b.posicion);
-    const pts = pronsRace.reduce((s,pr)=>{
-      const ri = arr.indexOf(pr.piloto);
-      if (ri===-1) return s;
-      const diff = Math.abs((pr.posicion-1)-ri);
-      return s+(diff<PTS_SCALE.length?PTS_SCALE[diff]:0);
-    },0);
-    return { race, pts };
-  }).filter(Boolean).sort((a,b)=>b.pts-a.pts);
-
+  const rows = mine.breakdown.sort((a,b)=>b.champPts-a.champPts);
   el.innerHTML = `<table class="detail-table">
-    <thead><tr><th>Carrera</th><th style="text-align:right">Pts</th></tr></thead>
+    <thead><tr>
+      <th>Carrera</th>
+      <th style="text-align:right">Pts pronóst.</th>
+      <th style="text-align:right">Pts campeon.</th>
+    </tr></thead>
     <tbody>
-      ${rows.map(r=>`<tr>
-        <td>${r.race?.flag||''} ${r.race?.name||'?'}</td>
-        <td class="${r.pts>50?'pt-ex':r.pts>20?'pt-cl':'pt-no'}">${r.pts}</td>
-      </tr>`).join('')}
+      ${rows.map(r=>{
+        const race = RACE_MAP[r.raceId];
+        const cp = Number.isInteger(r.champPts) ? r.champPts : r.champPts.toFixed(1);
+        return `<tr>
+          <td>${race?.flag||''} ${race?.name||'?'}</td>
+          <td class="${r.raceScore>50?'pt-ex':r.raceScore>20?'pt-cl':'pt-no'}">${r.raceScore}</td>
+          <td class="${r.champPts>=25?'pt-ex':r.champPts>0?'pt-cl':'pt-no'}">${cp}</td>
+        </tr>`;
+      }).join('')}
     </tbody>
   </table>`;
 }
@@ -619,21 +653,29 @@ function renderEvoChart(sorted) {
     resMap[r.carrera_id].push(r);
   });
 
+  // Pre-compute championship pts per participant per race
+  const champByRace = {}; // champByRace[pid][rid] = champPts
+  raceIds.forEach(rid => {
+    const res = resMap[rid];
+    if (!res) return;
+    const arr = res.sort((a,b)=>a.posicion-b.posicion).map(r=>r.piloto);
+    const scores = participantes.map(p => ({
+      id: p.id, nombre: p.nombre,
+      raceScore: calcRaceScore(p.id, rid, arr)
+    })).filter(p => p.raceScore !== null).sort((a,b)=>b.raceScore-a.raceScore);
+    const withChamp = assignChampionshipPts(scores);
+    withChamp.forEach(p => {
+      if (!champByRace[p.id]) champByRace[p.id] = {};
+      champByRace[p.id][rid] = p.champPts;
+    });
+  });
+
   const datasets = sorted.slice(0,8).map((p,i)=>{
     const color = avatarColor(p.nombre);
     let cum = 0;
     const data = raceIds.map(rid=>{
-      const res=resMap[rid];
-      if(!res) return cum;
-      const arr=res.sort((a,b)=>a.posicion-b.posicion).map(r=>r.piloto);
-      const myP=allProns.filter(pr=>pr.participante_id===p.id&&pr.carrera_id===rid);
-      myP.forEach(pr=>{
-        const ri=arr.indexOf(pr.piloto);
-        if(ri===-1) return;
-        const diff=Math.abs((pr.posicion-1)-ri);
-        cum+=diff<PTS_SCALE.length?PTS_SCALE[diff]:0;
-      });
-      return cum;
+      cum += (champByRace[p.id]?.[rid] || 0);
+      return Math.round(cum * 10) / 10;
     });
     return { label:p.nombre, data, borderColor:color, backgroundColor:color+'22', tension:.4, fill:false, pointRadius:4, pointHoverRadius:6, borderWidth:2 };
   });
@@ -826,3 +868,4 @@ function toast(msg, type='') {
 //  START
 // ═══════════════════════════════════════════════════
 init();
+
