@@ -31,8 +31,6 @@ const DRIVERS = [
   { name:'Bortoleto',  team:'Audi',        num:5,  color:'#52C7B8' },
   { name:'Bottas',     team:'Cadillac',    num:77, color:'#900000' },
   { name:'Perez',      team:'Cadillac',    num:11, color:'#900000' },
-  { name:'Tsunoda',    team:'Sauber',      num:22, color:'#52C7B8' },
-  { name:'Doohan',     team:'Sauber',      num:61, color:'#52C7B8' },
 ];
 
 const DRIVER_MAP = {};
