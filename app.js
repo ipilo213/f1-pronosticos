@@ -86,6 +86,7 @@ let currentUser   = null;
 let participantes = [];
 let allProns      = [];
 let allResults    = [];
+let allHistorico  = [];
 let adminUnlocked = false;
 let rankMode      = 'general';
 let evoChart      = null;
@@ -94,14 +95,16 @@ let evoChart      = null;
 //  INIT
 // ═══════════════════════════════════════════════════
 async function init() {
-  const [{ data: parts }, { data: prons }, { data: ress }] = await Promise.all([
+  const [{ data: parts }, { data: prons }, { data: ress }, { data: hist }] = await Promise.all([
     db.from('participantes').select('*').order('nombre'),
     db.from('pronosticos').select('*'),
     db.from('resultados').select('*'),
+    db.from('puntos_historicos').select('*'),
   ]);
   participantes = parts || [];
   allProns      = prons || [];
   allResults    = ress  || [];
+  allHistorico  = hist  || [];
 
   renderNameGrid();
   populateAllSelects();
@@ -439,23 +442,42 @@ function assignChampionshipPts(scores) {
 }
 
 function calcGeneralRanking() {
-  const raceIds = [...new Set(allResults.map(r => r.carrera_id))];
-  const resMap  = {};
+  const totals = {};
+  participantes.forEach(p => totals[p.id] = { id:p.id, nombre:p.nombre, pts:0, breakdown:[] });
+
+  // Sumar puntos históricos (carreras sin pronósticos en la app)
+  allHistorico.forEach(h => {
+    if (!totals[h.participante_id]) return;
+    totals[h.participante_id].pts += Number(h.pts_campeonato);
+    totals[h.participante_id].breakdown.push({
+      raceId: h.carrera_id,
+      raceScore: h.pts_carrera,
+      champPts: Number(h.pts_campeonato),
+      historico: true
+    });
+  });
+
+  // Sumar puntos calculados desde pronósticos cargados en la app
+  const raceIdsConProns = [...new Set(allProns.map(p => p.carrera_id))];
+  const raceIdsConResult = [...new Set(allResults.map(r => r.carrera_id))];
+  const raceIdsHistorico = new Set(allHistorico.map(h => h.carrera_id));
+
+  // Solo procesar carreras que tienen resultado Y pronósticos Y NO están en histórico
+  const raceIds = raceIdsConResult.filter(rid =>
+    raceIdsConProns.includes(rid) && !raceIdsHistorico.has(rid)
+  );
+
+  const resMap = {};
   allResults.forEach(r => {
     if (!resMap[r.carrera_id]) resMap[r.carrera_id] = [];
     resMap[r.carrera_id].push(r);
   });
-
-  // Puntos de campeonato acumulados por participante
-  const totals = {};
-  participantes.forEach(p => totals[p.id] = { id:p.id, nombre:p.nombre, pts:0, breakdown:[] });
 
   raceIds.forEach(rid => {
     const res = resMap[rid];
     if (!res) return;
     const arr = res.sort((a,b)=>a.posicion-b.posicion).map(r=>r.piloto);
 
-    // Calcular score de pronóstico de cada participante en esta carrera
     const scores = participantes.map(p => ({
       id: p.id, nombre: p.nombre,
       raceScore: calcRaceScore(p.id, rid, arr)
@@ -868,4 +890,3 @@ function toast(msg, type='') {
 //  START
 // ═══════════════════════════════════════════════════
 init();
-
