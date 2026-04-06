@@ -107,21 +107,21 @@ let evoChart      = null;
 //  INIT
 // ═══════════════════════════════════════════════════
 const PARTICIPANTES_HARDCODED = [
-  { id:1,  nombre:'Adolfo' },
-  { id:2,  nombre:'Alejandro' },
-  { id:3,  nombre:'Andres' },
-  { id:4,  nombre:'Damian' },
-  { id:5,  nombre:'Daniel A' },
-  { id:6,  nombre:'Daniel H' },
-  { id:7,  nombre:'Diego' },
-  { id:8,  nombre:'Federico' },
-  { id:9,  nombre:'German' },
-  { id:10, nombre:'Juan Bon' },
-  { id:11, nombre:'Lito' },
-  { id:12, nombre:'Martin' },
-  { id:13, nombre:'Mauricio' },
-  { id:14, nombre:'Nacho' },
-  { id:15, nombre:'Sebastian' },
+  { id:1,  nombre:'Nacho' },
+  { id:2,  nombre:'Diego' },
+  { id:3,  nombre:'Daniel A' },
+  { id:4,  nombre:'Alejandro' },
+  { id:5,  nombre:'Daniel H' },
+  { id:6,  nombre:'Martin' },
+  { id:7,  nombre:'Federico' },
+  { id:8,  nombre:'Damian' },
+  { id:9,  nombre:'Andres' },
+  { id:10, nombre:'Adolfo' },
+  { id:11, nombre:'German' },
+  { id:12, nombre:'Juan Bon' },
+  { id:13, nombre:'Lito' },
+  { id:14, nombre:'Sebastian' },
+  { id:15, nombre:'Mauricio' },
 ];
 
 async function init() {
