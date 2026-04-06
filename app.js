@@ -106,23 +106,40 @@ let evoChart      = null;
 // ═══════════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════════
-async function init() {
-  const [{ data: parts }, { data: prons }, { data: ress }, { data: hist }] = await Promise.all([
-    db.from('participantes').select('*').order('nombre'),
-    db.from('pronosticos').select('*'),
-    db.from('resultados').select('*'),
-    db.from('puntos_historicos').select('*'),
-  ]);
-  participantes = parts || [];
-  allProns      = prons || [];
-  allResults    = ress  || [];
-  allHistorico  = hist  || [];
+const PARTICIPANTES_HARDCODED = [
+  { id:1,  nombre:'Adolfo' },
+  { id:2,  nombre:'Alejandro' },
+  { id:3,  nombre:'Andres' },
+  { id:4,  nombre:'Damian' },
+  { id:5,  nombre:'Daniel A' },
+  { id:6,  nombre:'Daniel H' },
+  { id:7,  nombre:'Diego' },
+  { id:8,  nombre:'Federico' },
+  { id:9,  nombre:'German' },
+  { id:10, nombre:'Juan Bon' },
+  { id:11, nombre:'Lito' },
+  { id:12, nombre:'Martin' },
+  { id:13, nombre:'Mauricio' },
+  { id:14, nombre:'Nacho' },
+  { id:15, nombre:'Sebastian' },
+];
 
+async function init() {
+  participantes = PARTICIPANTES_HARDCODED;
   renderNameGrid();
   populateAllSelects();
 
   const saved = sessionStorage.getItem('f1_user');
   if (saved) enterAsUser(JSON.parse(saved));
+
+  const [{ data: prons }, { data: ress }, { data: hist }] = await Promise.all([
+    db.from('pronosticos').select('*'),
+    db.from('resultados').select('*'),
+    db.from('puntos_historicos').select('*'),
+  ]);
+  allProns     = prons || [];
+  allResults   = ress  || [];
+  allHistorico = hist  || [];
 }
 
 // ═══════════════════════════════════════════════════
