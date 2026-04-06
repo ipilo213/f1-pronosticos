@@ -39,9 +39,9 @@ const DRIVER_MAP = {};
 DRIVERS.forEach(d => DRIVER_MAP[d.name] = d);
 
 const RACES = [
-  { id:1,  name:'Australia',      flag:'🇦🇺', start:'2026-03-08T05:00:00Z' }, // 3pm AEDT
-  { id:2,  name:'China',          flag:'🇨🇳', start:'2026-03-22T07:00:00Z' }, // 3pm CST
-  { id:3,  name:'Japón',          flag:'🇯🇵', start:null }, // 2pm JST
+  { id:1,  name:'Australia',      flag:'🇦🇺', start:'2026-03-08T05:00:00Z' }, // pasada - bloqueada
+  { id:2,  name:'China',          flag:'🇨🇳', start:'2026-03-22T07:00:00Z' }, // pasada - bloqueada
+  { id:3,  name:'Japón',          flag:'🇯🇵', start:null }, // dejada abierta para cargar pronósticos
   { id:6,  name:'Miami',          flag:'🇺🇸', start:'2026-05-03T20:00:00Z' }, // 4pm EDT
   { id:7,  name:'Canadá',         flag:'🇨🇦', start:'2026-05-24T20:00:00Z' }, // 4pm EDT
   { id:8,  name:'Mónaco',         flag:'🇲🇨', start:'2026-06-07T13:00:00Z' }, // 3pm CEST
@@ -202,8 +202,8 @@ function renderHome() {
 
 function renderNextRace() {
   const now = new Date();
-  const next = RACES.find(r => new Date(r.date) > now) || RACES[RACES.length-1];
-  const target = new Date(next.date);
+  const next = RACES.find(r => r.start && new Date(r.start) > now) || RACES[RACES.length-1];
+  const target = new Date(next.start || next.date || now);
   const diff = target - now;
   const days = Math.max(0, Math.floor(diff / 86400000));
   const hrs  = Math.max(0, Math.floor((diff % 86400000) / 3600000));
