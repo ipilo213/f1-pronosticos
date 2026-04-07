@@ -31,6 +31,8 @@ const DRIVERS = [
   { name:'Bortoleto',  team:'Audi',        num:5,  color:'#52C7B8' },
   { name:'Bottas',     team:'Cadillac',    num:77, color:'#900000' },
   { name:'Perez',      team:'Cadillac',    num:11, color:'#900000' },
+  { name:'Tsunoda',    team:'Sauber',      num:22, color:'#52C7B8' },
+  { name:'Doohan',     team:'Sauber',      num:61, color:'#52C7B8' },
 ];
 
 const DRIVER_MAP = {};
@@ -401,6 +403,21 @@ async function savePronostico() {
     picks.push(v);
   }
   if (new Set(picks).size !== 10) { toast('Hay pilotos repetidos','err'); return; }
+
+  // Chequear si alguien ya pronosticó exactamente igual
+  const otrosProns = participantes.filter(p => p.id !== currentUser.id).map(p => {
+    const susProns = allProns
+      .filter(pr => pr.participante_id === p.id && pr.carrera_id === raceId)
+      .sort((a,b) => a.posicion - b.posicion)
+      .map(pr => pr.piloto);
+    return { nombre: p.nombre, prons: susProns };
+  }).filter(p => p.prons.length === 10);
+
+  const copia = otrosProns.find(p => p.prons.every((piloto, i) => piloto === picks[i]));
+  if (copia) {
+    toast(`⚠️ ${copia.nombre} ya pronosticó exactamente igual. Cambiá algo.`, 'err');
+    return;
+  }
 
   btn.disabled = true;
   btn.querySelector('.btn-text').textContent = 'GUARDANDO...';
