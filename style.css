@@ -530,3 +530,16 @@ select{font-family:var(--font-d)}
 .sfc-piloto{font-family:var(--font-d);font-size:1rem;font-weight:800;color:var(--text);margin-bottom:2px}
 .sfc-team{font-size:.75rem;color:var(--text3);margin-bottom:4px}
 .sfc-veces{font-family:var(--font-m);font-size:.75rem;color:var(--red)}
+
+/* ── VIDEO BG ── */
+.hero-video {
+  position:absolute;inset:0;width:100%;height:100%;
+  object-fit:cover;z-index:0;pointer-events:none;
+}
+.hero-video-overlay {
+  position:absolute;inset:0;z-index:1;
+  background:rgba(0,0,0,0.65);pointer-events:none;
+}
+.select-hero { position:relative;overflow:hidden; }
+.hero-track-lines { z-index:2; }
+.hero-content { position:relative;z-index:3; }
