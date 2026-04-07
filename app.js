@@ -31,6 +31,8 @@ const DRIVERS = [
   { name:'Bortoleto',  team:'Audi',        num:5,  color:'#52C7B8' },
   { name:'Bottas',     team:'Cadillac',    num:77, color:'#900000' },
   { name:'Perez',      team:'Cadillac',    num:11, color:'#900000' },
+  { name:'Tsunoda',    team:'Sauber',      num:22, color:'#52C7B8' },
+  { name:'Doohan',     team:'Sauber',      num:61, color:'#52C7B8' },
 ];
 
 const DRIVER_MAP = {};
@@ -432,14 +434,18 @@ async function savePronostico() {
   showShareButton(raceId, picks);
 }
 
+let _sharePicks = [];
+let _shareRaceId = null;
+
 function showShareButton(raceId, picks) {
+  _sharePicks = picks;
+  _shareRaceId = raceId;
   const existing = document.getElementById('share-section');
   if (existing) existing.remove();
-  const race = RACE_MAP[raceId];
   const el = document.createElement('div');
   el.id = 'share-section';
   el.style.cssText = 'margin-bottom:1rem;';
-  el.innerHTML = `<button class="btn-f1" style="background:#1a1a1a;border:1px solid rgba(255,255,255,0.15);" onclick="generateShareImage(${raceId}, ${JSON.stringify(picks)}, this)">
+  el.innerHTML = `<button class="btn-f1" style="background:#1a1a1a;border:1px solid rgba(255,255,255,0.15);" onclick="generateShareImage(_shareRaceId, _sharePicks, this)">
     <span class="btn-text">COMPARTIR PRONÓSTICO</span>
     <span class="btn-flag" style="font-size:1rem">↗</span>
   </button>`;
