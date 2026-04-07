@@ -31,6 +31,8 @@ const DRIVERS = [
   { name:'Bortoleto',  team:'Audi',        num:5,  color:'#52C7B8' },
   { name:'Bottas',     team:'Cadillac',    num:77, color:'#900000' },
   { name:'Perez',      team:'Cadillac',    num:11, color:'#900000' },
+  { name:'Tsunoda',    team:'Sauber',      num:22, color:'#52C7B8' },
+  { name:'Doohan',     team:'Sauber',      num:61, color:'#52C7B8' },
 ];
 
 const DRIVER_MAP = {};
@@ -189,6 +191,7 @@ function showTab(name) {
   if (name === 'home')        renderHome();
   if (name === 'pronosticar') loadPronostico();
   if (name === 'ranking')     loadRanking();
+  if (name === 'stats')       renderStats();
   if (name === 'resultado')   initAdmin();
 }
 
@@ -1087,6 +1090,308 @@ function openRaceModal(raceId) {
   document.getElementById('modal').classList.add('open');
 }
 function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+
+// ═══════════════════════════════════════════════════
+//  ESTADÍSTICAS
+// ═══════════════════════════════════════════════════
+function renderStats() {
+  const body = document.getElementById('tab-stats');
+  if (!allResults.length) {
+    body.innerHTML = '<div class="pane-inner"><div class="empty-state"><div class="ei">📊</div><p>Sin datos aún</p></div></div>';
+    return;
+  }
+
+  const raceIds = [...new Set(allResults.map(r => r.carrera_id))];
+  const resMap = {};
+  allResults.forEach(r => {
+    if (!resMap[r.carrera_id]) resMap[r.carrera_id] = [];
+    resMap[r.carrera_id].push(r);
+  });
+
+  // ── Calcular datos base ──
+  // Por participante, por carrera: puntaje de carrera + exactos
+  const statsByParticipant = {};
+  participantes.forEach(p => {
+    statsByParticipant[p.id] = { nombre: p.nombre, carreras: [], totalExactos: 0, pilotosFav: {} };
+  });
+
+  const carreraStats = []; // { raceId, nombre, scores: [{id, nombre, pts, exactos}] }
+
+  raceIds.forEach(rid => {
+    const res = resMap[rid]?.sort((a,b) => a.posicion - b.posicion) || [];
+    const resArr = res.map(r => r.piloto);
+    const race = RACE_MAP[rid];
+    const scores = [];
+
+    participantes.forEach(p => {
+      const myP = allProns.filter(pr => pr.participante_id === p.id && pr.carrera_id === rid)
+        .sort((a,b) => a.posicion - b.posicion);
+      if (!myP.length) return;
+
+      let pts = 0, exactos = 0;
+      myP.forEach(pr => {
+        const ri = resArr.indexOf(pr.piloto);
+        if (ri === -1) return;
+        const diff = Math.abs((pr.posicion - 1) - ri);
+        const p2 = diff < PTS_SCALE.length ? PTS_SCALE[diff] : 0;
+        pts += p2;
+        if (diff === 0) exactos++;
+        // piloto favorito (el que más pronostican en P1)
+        if (pr.posicion === 1) {
+          statsByParticipant[p.id].pilotosFav[pr.piloto] = (statsByParticipant[p.id].pilotosFav[pr.piloto] || 0) + 1;
+        }
+      });
+
+      statsByParticipant[p.id].carreras.push({ raceId: rid, pts, exactos });
+      statsByParticipant[p.id].totalExactos += exactos;
+      scores.push({ id: p.id, nombre: p.nombre, pts, exactos });
+    });
+
+    carreraStats.push({ raceId: rid, nombre: race?.name || rid, flag: race?.flag || '', scores });
+  });
+
+  // ── Records ──
+  let maxPtsCarrera = { pts: 0, nombre: '', carrera: '' };
+  let maxExactosCarrera = { exactos: 0, nombre: '', carrera: '' };
+  let maxExactosTotales = { exactos: 0, nombre: '' };
+  let pilotoMasAcertado = {};
+  let pilotoMasDificil = {};
+  let mejorRacha = { racha: 0, nombre: '' };
+
+  // Piloto más/menos acertado
+  allProns.forEach(pr => {
+    const res = resMap[pr.carrera_id];
+    if (!res) return;
+    const resArr = res.sort((a,b) => a.posicion - b.posicion).map(r => r.piloto);
+    const ri = resArr.indexOf(pr.piloto);
+    if (ri === -1) return;
+    const diff = Math.abs((pr.posicion - 1) - ri);
+    if (diff === 0) {
+      pilotoMasAcertado[pr.piloto] = (pilotoMasAcertado[pr.piloto] || 0) + 1;
+    }
+    pilotoMasDificil[pr.piloto] = pilotoMasDificil[pr.piloto] || { intentos: 0, exactos: 0 };
+    pilotoMasDificil[pr.piloto].intentos++;
+    if (diff === 0) pilotoMasDificil[pr.piloto].exactos++;
+  });
+
+  participantes.forEach(p => {
+    const sp = statsByParticipant[p.id];
+    if (!sp.carreras.length) return;
+
+    // max pts en una carrera
+    sp.carreras.forEach(c => {
+      if (c.pts > maxPtsCarrera.pts) {
+        maxPtsCarrera = { pts: c.pts, nombre: p.nombre, carrera: RACE_MAP[c.raceId]?.name || '' };
+      }
+      if (c.exactos > maxExactosCarrera.exactos) {
+        maxExactosCarrera = { exactos: c.exactos, nombre: p.nombre, carrera: RACE_MAP[c.raceId]?.name || '' };
+      }
+    });
+
+    // max exactos totales
+    if (sp.totalExactos > maxExactosTotales.exactos) {
+      maxExactosTotales = { exactos: sp.totalExactos, nombre: p.nombre };
+    }
+
+    // mejor racha (carreras seguidas sumando puntos campeonato > 0)
+    const ranking = calcGeneralRanking();
+    let racha = 0, maxR = 0;
+    sp.carreras.forEach(c => {
+      if (c.pts > 0) { racha++; maxR = Math.max(maxR, racha); }
+      else racha = 0;
+    });
+    if (maxR > mejorRacha.racha) mejorRacha = { racha: maxR, nombre: p.nombre };
+  });
+
+  const topPiloto = Object.entries(pilotoMasAcertado).sort((a,b) => b[1] - a[1])[0];
+  const difPiloto = Object.entries(pilotoMasDificil)
+    .filter(([,v]) => v.intentos >= 3)
+    .sort((a,b) => (a[1].exactos/a[1].intentos) - (b[1].exactos/b[1].intentos))[0];
+
+  // ── Favorito de cada uno ──
+  const favoritosPorPersona = participantes.map(p => {
+    const favs = statsByParticipant[p.id]?.pilotosFav || {};
+    const top = Object.entries(favs).sort((a,b) => b[1] - a[1])[0];
+    return { nombre: p.nombre, piloto: top?.[0] || '—', veces: top?.[1] || 0 };
+  }).filter(p => p.piloto !== '—');
+
+  // ── Mejor carrera de cada uno ──
+  const mejorCarreraPorPersona = participantes.map(p => {
+    const sp = statsByParticipant[p.id];
+    if (!sp?.carreras.length) return null;
+    const best = sp.carreras.reduce((a,b) => b.pts > a.pts ? b : a);
+    return { nombre: p.nombre, pts: best.pts, carrera: RACE_MAP[best.raceId]?.name || '?', flag: RACE_MAP[best.raceId]?.flag || '' };
+  }).filter(Boolean).sort((a,b) => b.pts - a.pts);
+
+  // ── Exactos totales ranking ──
+  const exactosRanking = participantes.map(p => ({
+    nombre: p.nombre,
+    exactos: statsByParticipant[p.id]?.totalExactos || 0
+  })).sort((a,b) => b.exactos - a.exactos).filter(p => p.exactos > 0);
+
+  const maxExactos = exactosRanking[0]?.exactos || 1;
+
+  // ── Promedio de pts por carrera ──
+  const promedioRanking = participantes.map(p => {
+    const sp = statsByParticipant[p.id];
+    if (!sp?.carreras.length) return null;
+    const avg = sp.carreras.reduce((s,c) => s + c.pts, 0) / sp.carreras.length;
+    return { nombre: p.nombre, avg: Math.round(avg * 10) / 10 };
+  }).filter(Boolean).sort((a,b) => b.avg - a.avg);
+
+  const maxAvg = promedioRanking[0]?.avg || 1;
+
+  // ── Carrera más pareja (menor diferencia entre 1ro y último) ──
+  let carreraMasPareja = { diff: 9999, nombre: '', flag: '' };
+  carreraStats.forEach(cs => {
+    if (cs.scores.length < 2) return;
+    const sorted = cs.scores.sort((a,b) => b.pts - a.pts);
+    const diff = sorted[0].pts - sorted[sorted.length-1].pts;
+    if (diff < carreraMasPareja.diff) carreraMasPareja = { diff, nombre: cs.nombre, flag: cs.flag };
+  });
+
+  // ── HTML ──
+  body.innerHTML = `<div class="pane-inner" id="stats-inner">
+
+    <h2 class="section-title">RÉCORDS</h2>
+    <div class="stats-records-grid">
+      <div class="stat-record-card">
+        <div class="src-icon">🏆</div>
+        <div class="src-value">${maxPtsCarrera.pts}</div>
+        <div class="src-label">pts en una carrera</div>
+        <div class="src-who">${maxPtsCarrera.nombre} — ${maxPtsCarrera.carrera}</div>
+      </div>
+      <div class="stat-record-card">
+        <div class="src-icon">🎯</div>
+        <div class="src-value">${maxExactosCarrera.exactos}</div>
+        <div class="src-label">exactos en una carrera</div>
+        <div class="src-who">${maxExactosCarrera.nombre} — ${maxExactosCarrera.carrera}</div>
+      </div>
+      <div class="stat-record-card">
+        <div class="src-icon">⭐</div>
+        <div class="src-value">${maxExactosTotales.exactos}</div>
+        <div class="src-label">exactos en la temporada</div>
+        <div class="src-who">${maxExactosTotales.nombre}</div>
+      </div>
+      <div class="stat-record-card">
+        <div class="src-icon">🔥</div>
+        <div class="src-value">${mejorRacha.racha}</div>
+        <div class="src-label">carreras seguidas puntuando</div>
+        <div class="src-who">${mejorRacha.nombre}</div>
+      </div>
+      ${topPiloto ? `<div class="stat-record-card">
+        <div class="src-icon">✅</div>
+        <div class="src-value">${topPiloto[1]}x</div>
+        <div class="src-label">piloto más acertado</div>
+        <div class="src-who">${topPiloto[0]}</div>
+      </div>` : ''}
+      ${difPiloto ? `<div class="stat-record-card">
+        <div class="src-icon">😤</div>
+        <div class="src-value">${difPiloto[0]}</div>
+        <div class="src-label">más difícil de acertar</div>
+        <div class="src-who">${difPiloto[1].exactos}/${difPiloto[1].intentos} exactos</div>
+      </div>` : ''}
+      <div class="stat-record-card">
+        <div class="src-icon">🤝</div>
+        <div class="src-value">${carreraMasPareja.flag} ${carreraMasPareja.nombre}</div>
+        <div class="src-label">carrera más pareja</div>
+        <div class="src-who">diferencia de ${carreraMasPareja.diff} pts</div>
+      </div>
+    </div>
+
+    <h2 class="section-title" style="margin-top:2rem">EXACTOS EN LA TEMPORADA</h2>
+    <div class="stats-bar-list">
+      ${exactosRanking.map((p,i) => `
+        <div class="stats-bar-row">
+          <div class="sbr-name">${p.nombre}</div>
+          <div class="sbr-bar-wrap">
+            <div class="sbr-bar" style="width:${Math.round(p.exactos/maxExactos*100)}%;background:#E10600"></div>
+          </div>
+          <div class="sbr-val">${p.exactos}</div>
+        </div>`).join('')}
+    </div>
+
+    <h2 class="section-title" style="margin-top:2rem">PROMEDIO DE PTS POR CARRERA</h2>
+    <div class="stats-bar-list">
+      ${promedioRanking.map(p => `
+        <div class="stats-bar-row">
+          <div class="sbr-name">${p.nombre}</div>
+          <div class="sbr-bar-wrap">
+            <div class="sbr-bar" style="width:${Math.round(p.avg/maxAvg*100)}%;background:#00D2BE"></div>
+          </div>
+          <div class="sbr-val">${p.avg}</div>
+        </div>`).join('')}
+    </div>
+
+    <h2 class="section-title" style="margin-top:2rem">MEJOR CARRERA DE CADA UNO</h2>
+    <div class="stats-best-grid">
+      ${mejorCarreraPorPersona.map(p => `
+        <div class="stats-best-card">
+          <div class="sbc-name">${p.nombre}</div>
+          <div class="sbc-race">${p.flag} ${p.carrera}</div>
+          <div class="sbc-pts">${p.pts}<span>pts</span></div>
+        </div>`).join('')}
+    </div>
+
+    <h2 class="section-title" style="margin-top:2rem">PILOTO FAVORITO DE CADA UNO</h2>
+    <div class="stats-fav-grid">
+      ${favoritosPorPersona.map(p => {
+        const d = DRIVER_MAP[p.piloto] || {};
+        return `<div class="stats-fav-card" style="border-left:3px solid ${d.color||'#444'}">
+          <div class="sfc-name">${p.nombre}</div>
+          <div class="sfc-piloto">${p.piloto}</div>
+          <div class="sfc-team">${d.team||''}</div>
+          <div class="sfc-veces">${p.veces}x en P1</div>
+        </div>`;
+      }).join('')}
+    </div>
+
+    <div id="stats-chart-section" style="margin-top:2rem">
+      <h2 class="section-title">PTS POR CARRERA — TODOS</h2>
+      <div class="chart-wrap"><canvas id="stats-chart"></canvas></div>
+    </div>
+
+  </div>`;
+
+  renderStatsChart(carreraStats);
+}
+
+function renderStatsChart(carreraStats) {
+  const ctx = document.getElementById('stats-chart');
+  if (!ctx) return;
+
+  const labels = carreraStats.map(c => c.flag + ' ' + c.nombre.slice(0,3).toUpperCase());
+
+  const datasets = participantes.map((p, i) => {
+    const color = avatarColor(p.nombre);
+    const data = carreraStats.map(cs => {
+      const s = cs.scores.find(s => s.id === p.id);
+      return s ? s.pts : null;
+    });
+    return {
+      label: p.nombre, data, borderColor: color, backgroundColor: color + '33',
+      tension: 0.3, fill: false, pointRadius: 4, pointHoverRadius: 6,
+      borderWidth: 2, spanGaps: true
+    };
+  });
+
+  if (window._statsChart) window._statsChart.destroy();
+  window._statsChart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#aaa', font: { family: 'Barlow Condensed', size: 10 }, boxWidth: 10, padding: 8 } }
+      },
+      scales: {
+        x: { ticks: { color: '#666', font: { family: 'Barlow Condensed', size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+        y: { ticks: { color: '#666', font: { family: 'Barlow Condensed', size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } }
+      }
+    }
+  });
+}
 
 // ═══════════════════════════════════════════════════
 //  HELPERS
