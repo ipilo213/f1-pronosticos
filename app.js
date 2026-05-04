@@ -471,7 +471,17 @@ function calcRaceScore(participanteId, raceId, resArr) {
   }, 0);
 }
 
+function calcRaceExactos(participanteId, raceId, resArr) {
+  const myP = allProns.filter(p => p.participante_id === participanteId && p.carrera_id === raceId);
+  return myP.reduce((sum, pr) => {
+    const ri = resArr.indexOf(pr.piloto);
+    return sum + (ri !== -1 && Math.abs((pr.posicion-1)-ri) === 0 ? 1 : 0);
+  }, 0);
+}
+
 function assignChampionshipPts(scores) {
+  // scores sorted desc by raceScore, each entry has { id, nombre, raceScore, exactos }
+  // tiebreak: more exactos wins; if same exactos → share (average)
   const result = [];
   let i = 0;
   while (i < scores.length) {
@@ -479,10 +489,32 @@ function assignChampionshipPts(scores) {
     if (val === null) { result.push({ ...scores[i], champPts: 0 }); i++; continue; }
     let j = i;
     while (j < scores.length && scores[j].raceScore === val) j++;
-    const posiciones = Array.from({length: j-i}, (_, k) => i+k);
-    const ptsValidos = posiciones.map(p => p < PTS_SCALE.length ? PTS_SCALE[p] : 0);
-    const avg = ptsValidos.reduce((s,p)=>s+p,0) / ptsValidos.length;
-    for (let k = i; k < j; k++) result.push({ ...scores[k], champPts: avg });
+    const tiedGroup = scores.slice(i, j);
+    const ptsValidos = Array.from({length: j-i}, (_,k) => (i+k) < PTS_SCALE.length ? PTS_SCALE[i+k] : 0);
+    if (tiedGroup.length === 1) {
+      result.push({ ...tiedGroup[0], champPts: ptsValidos[0] });
+    } else {
+      const exactosCounts = tiedGroup.map(s => s.exactos || 0);
+      const allSameExactos = exactosCounts.every(e => e === exactosCounts[0]);
+      if (allSameExactos) {
+        // todos igual exactos → promedio
+        const avg = ptsValidos.reduce((s,p)=>s+p,0) / ptsValidos.length;
+        tiedGroup.forEach(s => result.push({ ...s, champPts: avg }));
+      } else {
+        // distintos exactos → ordenar por exactos desc, asignar posiciones
+        const sorted = [...tiedGroup].sort((a,b) => (b.exactos||0) - (a.exactos||0));
+        let si = 0;
+        while (si < sorted.length) {
+          let sj = si;
+          const eVal = sorted[si].exactos || 0;
+          while (sj < sorted.length && (sorted[sj].exactos||0) === eVal) sj++;
+          const subPts = ptsValidos.slice(si, sj);
+          const subAvg = subPts.reduce((s,p)=>s+p,0) / subPts.length;
+          for (let sk = si; sk < sj; sk++) result.push({ ...sorted[sk], champPts: subAvg });
+          si = sj;
+        }
+      }
+    }
     i = j;
   }
   return result;
@@ -506,11 +538,14 @@ function calcGeneralRanking() {
     const res = resMap[rid];
     if (!res) return;
     const arr = res.sort((a,b)=>a.posicion-b.posicion).map(r=>r.piloto);
-    const scores = participantes.map(p => ({ id: p.id, nombre: p.nombre, raceScore: calcRaceScore(p.id, rid, arr) }))
-      .filter(p => p.raceScore !== null).sort((a,b) => b.raceScore - a.raceScore);
+    const scores = participantes.map(p => ({
+      id: p.id, nombre: p.nombre,
+      raceScore: calcRaceScore(p.id, rid, arr),
+      exactos: calcRaceExactos(p.id, rid, arr)
+    })).filter(p => p.raceScore !== null).sort((a,b) => b.raceScore - a.raceScore);
     assignChampionshipPts(scores).forEach(p => {
       totals[p.id].pts += p.champPts;
-      totals[p.id].breakdown.push({ raceId: rid, raceScore: p.raceScore, champPts: p.champPts });
+      totals[p.id].breakdown.push({ raceId: rid, raceScore: p.raceScore, champPts: p.champPts, exactos: p.exactos });
     });
   });
   return Object.values(totals).sort((a,b) => b.pts - a.pts);
@@ -725,8 +760,11 @@ function renderEvoChart(sorted) {
   raceIds.forEach(rid => {
     const res = resMap[rid]; if (!res) return;
     const arr = res.sort((a,b)=>a.posicion-b.posicion).map(r=>r.piloto);
-    const scores = participantes.map(p => ({ id: p.id, nombre: p.nombre, raceScore: calcRaceScore(p.id, rid, arr) }))
-      .filter(p => p.raceScore !== null).sort((a,b)=>b.raceScore-a.raceScore);
+    const scores = participantes.map(p => ({
+      id: p.id, nombre: p.nombre,
+      raceScore: calcRaceScore(p.id, rid, arr),
+      exactos: calcRaceExactos(p.id, rid, arr)
+    })).filter(p => p.raceScore !== null).sort((a,b)=>b.raceScore-a.raceScore);
     assignChampionshipPts(scores).forEach(p => {
       if (!champByRace[p.id]) champByRace[p.id] = {};
       champByRace[p.id][rid] = p.champPts;
