@@ -702,9 +702,18 @@ function loadRankCarrera() {
   }
   const resArr = res.map(r=>r.piloto);
   const race   = RACE_MAP[raceId];
+  // Calcular pts de campeonato para esta carrera
+  const scoresCarrera = participantes.map(p => ({
+    id: p.id, nombre: p.nombre,
+    raceScore: calcRaceScore(p.id, raceId, resArr),
+    breakdown: calcRaceScoreBreakdown(p.id, raceId, resArr)
+  })).filter(p => p.raceScore !== null).sort((a,b) => b.raceScore - a.raceScore);
+  const champPtsCarrera = {};
+  assignChampionshipPts(scoresCarrera).forEach(p => { champPtsCarrera[p.id] = p.champPts; });
+
   const data = participantes.map(p => {
     const myP = allProns.filter(pr=>pr.participante_id===p.id&&pr.carrera_id===raceId).sort((a,b)=>a.posicion-b.posicion);
-    if (!myP.length) return { nombre:p.nombre, id:p.id, pts:null, detail:[] };
+    if (!myP.length) return { nombre:p.nombre, id:p.id, pts:null, champ:null, detail:[] };
     let pts=0;
     const detail = myP.map(pr=>{
       const ri=resArr.indexOf(pr.piloto);
@@ -714,7 +723,8 @@ function loadRankCarrera() {
       pts+=p2;
       return {piloto:pr.piloto,pred:pr.posicion,real:ri+1,pts:p2};
     });
-    return {nombre:p.nombre,id:p.id,pts,detail};
+    const champ = champPtsCarrera[p.id] ?? null;
+    return {nombre:p.nombre,id:p.id,pts,champ,detail};
   }).sort((a,b)=>(b.pts||0)-(a.pts||0));
 
   body.innerHTML = `
@@ -727,10 +737,12 @@ function loadRankCarrera() {
       ${data.map((p,i)=>{
         const color=avatarColor(p.nombre);
         const numCls=i===0?'g':i===1?'s':i===2?'b':'';
+        const champStr = p.champ !== null ? (Number.isInteger(p.champ) ? p.champ : p.champ.toFixed(1)) : '—';
         return `<div class="rank-row" onclick="toggleCarreraDetail('crd-${p.id}')" id="crr-${p.id}">
           <div class="rank-num ${numCls}">${i+1}</div>
           <div class="rank-av" style="background:${color}">${p.nombre.slice(0,2).toUpperCase()}</div>
           <div class="rank-name">${p.nombre}</div>
+          <div class="rank-pts" style="margin-right:4px;font-size:.85rem;color:var(--text2)">${champStr}<span style="font-size:.6rem;color:var(--text3);margin-left:1px">camp</span></div>
           <div class="rank-pts">${p.pts!==null?p.pts+'<span>pts</span>':'—'}</div>
           <div class="rank-chevron">▼</div>
         </div>
