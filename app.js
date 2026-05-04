@@ -725,7 +725,13 @@ function loadRankCarrera() {
     });
     const champ = champPtsCarrera[p.id] ?? null;
     return {nombre:p.nombre,id:p.id,pts,champ,detail};
-  }).sort((a,b)=>(b.pts||0)-(a.pts||0));
+  }).sort((a,b) => {
+    // primary: pts carrera desc
+    const ptsDiff = (b.pts||0) - (a.pts||0);
+    if (ptsDiff !== 0) return ptsDiff;
+    // secondary: pts campeonato desc (resuelve empates igual que el sistema)
+    return (b.champ||0) - (a.champ||0);
+  });
 
   body.innerHTML = `
     <div class="race-info-bar" style="margin-bottom:1rem">
