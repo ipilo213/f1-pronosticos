@@ -471,17 +471,33 @@ function calcRaceScore(participanteId, raceId, resArr) {
   }, 0);
 }
 
-function calcRaceExactos(participanteId, raceId, resArr) {
+// Returns array of length PTS_SCALE.length: how many times each pts value was scored
+function calcRaceScoreBreakdown(participanteId, raceId, resArr) {
   const myP = allProns.filter(p => p.participante_id === participanteId && p.carrera_id === raceId);
-  return myP.reduce((sum, pr) => {
+  const counts = new Array(PTS_SCALE.length).fill(0);
+  myP.forEach(pr => {
     const ri = resArr.indexOf(pr.piloto);
-    return sum + (ri !== -1 && Math.abs((pr.posicion-1)-ri) === 0 ? 1 : 0);
-  }, 0);
+    if (ri === -1) return;
+    const diff = Math.abs((pr.posicion - 1) - ri);
+    if (diff < PTS_SCALE.length) counts[diff]++;
+  });
+  // counts[0] = exactos (25pts), counts[1] = 18pts, counts[2] = 15pts, etc.
+  return counts;
+}
+
+// Compare two breakdowns: returns 1 if a wins, -1 if b wins, 0 if tie
+function compareBreakdown(a, b) {
+  for (let i = 0; i < PTS_SCALE.length; i++) {
+    if (a[i] > b[i]) return 1;
+    if (a[i] < b[i]) return -1;
+  }
+  return 0;
 }
 
 function assignChampionshipPts(scores) {
-  // scores sorted desc by raceScore, each entry has { id, nombre, raceScore, exactos }
-  // tiebreak: more exactos wins; if same exactos → share (average)
+  // scores sorted desc by raceScore, each entry has { id, nombre, raceScore, breakdown }
+  // tiebreak cascade: most 25pts wins, then most 18pts, then 15pts, etc.
+  // if fully tied → share (average)
   const result = [];
   let i = 0;
   while (i < scores.length) {
@@ -491,28 +507,21 @@ function assignChampionshipPts(scores) {
     while (j < scores.length && scores[j].raceScore === val) j++;
     const tiedGroup = scores.slice(i, j);
     const ptsValidos = Array.from({length: j-i}, (_,k) => (i+k) < PTS_SCALE.length ? PTS_SCALE[i+k] : 0);
+
     if (tiedGroup.length === 1) {
       result.push({ ...tiedGroup[0], champPts: ptsValidos[0] });
     } else {
-      const exactosCounts = tiedGroup.map(s => s.exactos || 0);
-      const allSameExactos = exactosCounts.every(e => e === exactosCounts[0]);
-      if (allSameExactos) {
-        // todos igual exactos → promedio
-        const avg = ptsValidos.reduce((s,p)=>s+p,0) / ptsValidos.length;
-        tiedGroup.forEach(s => result.push({ ...s, champPts: avg }));
-      } else {
-        // distintos exactos → ordenar por exactos desc, asignar posiciones
-        const sorted = [...tiedGroup].sort((a,b) => (b.exactos||0) - (a.exactos||0));
-        let si = 0;
-        while (si < sorted.length) {
-          let sj = si;
-          const eVal = sorted[si].exactos || 0;
-          while (sj < sorted.length && (sorted[sj].exactos||0) === eVal) sj++;
-          const subPts = ptsValidos.slice(si, sj);
-          const subAvg = subPts.reduce((s,p)=>s+p,0) / subPts.length;
-          for (let sk = si; sk < sj; sk++) result.push({ ...sorted[sk], champPts: subAvg });
-          si = sj;
-        }
+      // sort by breakdown cascade
+      const sorted = [...tiedGroup].sort((a, b) => compareBreakdown(b.breakdown, a.breakdown));
+      // assign positions respecting sub-ties
+      let si = 0;
+      while (si < sorted.length) {
+        let sj = si;
+        while (sj < sorted.length && compareBreakdown(sorted[sj].breakdown, sorted[si].breakdown) === 0) sj++;
+        const subPts = ptsValidos.slice(si, sj);
+        const subAvg = subPts.reduce((s,p)=>s+p,0) / subPts.length;
+        for (let sk = si; sk < sj; sk++) result.push({ ...sorted[sk], champPts: subAvg });
+        si = sj;
       }
     }
     i = j;
@@ -541,11 +550,11 @@ function calcGeneralRanking() {
     const scores = participantes.map(p => ({
       id: p.id, nombre: p.nombre,
       raceScore: calcRaceScore(p.id, rid, arr),
-      exactos: calcRaceExactos(p.id, rid, arr)
+      breakdown: calcRaceScoreBreakdown(p.id, rid, arr)
     })).filter(p => p.raceScore !== null).sort((a,b) => b.raceScore - a.raceScore);
     assignChampionshipPts(scores).forEach(p => {
       totals[p.id].pts += p.champPts;
-      totals[p.id].breakdown.push({ raceId: rid, raceScore: p.raceScore, champPts: p.champPts, exactos: p.exactos });
+      totals[p.id].breakdown.push({ raceId: rid, raceScore: p.raceScore, champPts: p.champPts });
     });
   });
   return Object.values(totals).sort((a,b) => b.pts - a.pts);
@@ -763,7 +772,7 @@ function renderEvoChart(sorted) {
     const scores = participantes.map(p => ({
       id: p.id, nombre: p.nombre,
       raceScore: calcRaceScore(p.id, rid, arr),
-      exactos: calcRaceExactos(p.id, rid, arr)
+      breakdown: calcRaceScoreBreakdown(p.id, rid, arr)
     })).filter(p => p.raceScore !== null).sort((a,b)=>b.raceScore-a.raceScore);
     assignChampionshipPts(scores).forEach(p => {
       if (!champByRace[p.id]) champByRace[p.id] = {};
